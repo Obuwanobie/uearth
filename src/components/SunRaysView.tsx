@@ -44,7 +44,8 @@ function Earth() {
       // At summer solstice (day 172), the North Pole should lean TOWARD the sun (+X)
       // At winter solstice (day 355), the North Pole should lean AWAY from the sun (-X)
       // We rotate the outer group around Y to simulate orbital position
-      const seasonalAngle = ((dayOfYear - SUMMER_SOLSTICE_DAY) / 365.25) * 2 * Math.PI;
+      // NEGATIVE angle because we want counter-clockwise rotation when viewed from above
+      const seasonalAngle = -((dayOfYear - SUMMER_SOLSTICE_DAY) / 365.25) * 2 * Math.PI;
       outerGroupRef.current.rotation.y = seasonalAngle;
     }
 
