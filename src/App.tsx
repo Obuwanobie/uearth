@@ -37,10 +37,10 @@ function App() {
         <header className="h-12 bg-slate-800 border-b border-slate-700 flex items-center px-4 lg:px-6 shrink-0">
           <div className="ml-10 lg:ml-0">
             <h1 className="text-base lg:text-lg font-semibold">
-              <span className="text-cyan-400">Geo</span>
-              <span className="text-white">Truth</span>
+              <span className="text-cyan-400">U-</span>
+              <span className="text-white">Earth</span>
               <span className="text-slate-500 text-xs lg:text-sm ml-2 font-normal hidden sm:inline">
-                — Démonstration interactive de la géométrie terrestre
+                — Visualisation du système Terre-Soleil
               </span>
             </h1>
           </div>

@@ -343,12 +343,6 @@ function InfoPanel() {
         <span className="text-yellow-400 font-mono">{distance.toFixed(2)}</span> M km
       </div>
       
-      {/* Axial tilt explanation */}
-      <div className="text-slate-400 text-xs border-t border-slate-700 pt-2">
-        💡 L'axe de la Terre (cyan) pointe toujours vers la même étoile (Polaris). 
-        En été, le pôle Nord penche vers le Soleil. En hiver, il penche à l'opposé.
-      </div>
-      
       {/* Center toggle */}
       <div className="border-t border-slate-700 pt-2 mt-2">
         <div className="text-slate-500 text-xs mb-1">Centre de rotation:</div>

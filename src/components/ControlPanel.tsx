@@ -15,7 +15,6 @@ import {
   Orbit,
   Info,
   Hand,
-  Lightbulb,
   Ruler,
   Play,
   Pause,
@@ -424,19 +423,6 @@ export function ControlPanel() {
                 Survolez une carte pour voir les coordonnées
               </div>
             )}
-          </div>
-
-          {/* Info */}
-          <div className="p-4 border-t border-slate-700">
-            <div className="bg-slate-700/30 rounded p-3 text-xs text-slate-400">
-              <p className="font-semibold text-slate-300 mb-1 flex items-center gap-1">
-                <Lightbulb className="w-3 h-3 text-yellow-400" />
-                Astuce
-              </p>
-              <p>
-                Tracez une ligne droite sur la vue "Terre Plate" et observez comment elle devient courbe sur le globe réel !
-              </p>
-            </div>
           </div>
         </div>
       </div>
