@@ -43,9 +43,8 @@ function Earth() {
       // The Earth orbits the sun in ~365 days
       // At summer solstice (day 172), the North Pole should lean TOWARD the sun (+X)
       // At winter solstice (day 355), the North Pole should lean AWAY from the sun (-X)
-      // We rotate the outer group around Y to simulate orbital position
-      // NEGATIVE angle because we want counter-clockwise rotation when viewed from above
-      const seasonalAngle = -((dayOfYear - SUMMER_SOLSTICE_DAY) / 365.25) * 2 * Math.PI;
+      // In November (~day 334), South Pole should be exposed to sun
+      const seasonalAngle = ((dayOfYear - SUMMER_SOLSTICE_DAY) / 365.25) * 2 * Math.PI;
       outerGroupRef.current.rotation.y = seasonalAngle;
     }
 
@@ -133,8 +132,8 @@ function Earth() {
 
   return (
     <group ref={outerGroupRef}>
-      {/* Inner group for axial tilt - always tilted 23.5° around Z */}
-      <group rotation={[0, 0, AXIAL_TILT]}>
+      {/* Inner group for axial tilt - tilted -23.5° around Z so North leans toward +X */}
+      <group rotation={[0, 0, -AXIAL_TILT]}>
       {/* Rotation axis */}
       <Line
         points={[
