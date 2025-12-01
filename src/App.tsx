@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Globe3D } from './components/Globe3D';
 import { MapProjection } from './components/MapProjection';
 import { ControlPanel } from './components/ControlPanel';
@@ -34,7 +35,7 @@ function App() {
       {/* Main Content - Maps Grid */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="h-12 bg-slate-800 border-b border-slate-700 flex items-center px-4 lg:px-6 shrink-0">
+        <header className="h-12 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-4 lg:px-6 shrink-0">
           <div className="ml-10 lg:ml-0">
             <h1 className="text-base lg:text-lg font-semibold">
               <span className="text-cyan-400">U-</span>
@@ -43,6 +44,20 @@ function App() {
                 — Visualisation du système Terre-Soleil
               </span>
             </h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 hidden md:inline">Modèle actuel:</span>
+            <div className="flex rounded-lg overflow-hidden border border-slate-700">
+              <span className="px-3 py-1.5 bg-cyan-500/30 text-cyan-400 text-sm font-medium">
+                Globe
+              </span>
+              <Link 
+                to="/flat-earth" 
+                className="px-3 py-1.5 bg-slate-700/50 text-slate-400 text-sm hover:bg-amber-500/20 hover:text-amber-400 transition-colors"
+              >
+                Terre Plate
+              </Link>
+            </div>
           </div>
         </header>
 

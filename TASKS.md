@@ -31,6 +31,16 @@
 - [x] **7.2** Animation sur Globe3D → ✅ Ajout AnimationController dans le Canvas
 - [x] **7.3** Globe3D réagit aux curseurs manuels → ✅ Invalidate sur changement de dateTime/showSun
 
+## 8. Page Terre Plate
+- [x] **8.1** Navigation entre les deux modèles → ✅ React Router avec boutons dans le header
+- [x] **8.2** Modèle 3D Terre Plate → ✅ Disque plat avec projection azimutale
+- [x] **8.3** Firmament (dôme) → ✅ Dôme en wireframe avec étoiles
+- [x] **8.4** Soleil qui tourne au-dessus → ✅ Orbite circulaire variable selon saisons
+- [x] **8.5** Lune → ✅ Orbite opposée au soleil
+- [x] **8.6** Mur de glace (Antarctique) → ✅ Torus autour du disque
+- [x] **8.7** Distances annotées → ✅ ~5000 km altitude, ~40000 km diamètre
+- [x] **8.8** Contrôles temps/animation → ✅ Panneau avec sliders heure/jour
+
 ---
 
 ## Corrections effectuées dans cette session
