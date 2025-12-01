@@ -1,22 +1,22 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Line, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Info, Clock, Calendar, Play, Pause } from 'lucide-react';
+import { ArrowLeft, Info, Clock, Calendar, Play, Pause, Map, Box } from 'lucide-react';
 import { useGeoStore } from '../store/geoStore';
 import { useWorldData } from '../hooks/useWorldData';
 
 // Constants for the Flat Earth model
-const EARTH_RADIUS = 3; // Radius of the flat disc
-const DOME_RADIUS = 4; // Radius of the firmament dome
-const DOME_HEIGHT = 3; // Height of the dome
-const SUN_ALTITUDE = 2.5; // Height of the sun above the disc
-const SUN_ORBIT_RADIUS = 2; // Radius of sun's circular path
-const MOON_ALTITUDE = 2.3;
-const MOON_ORBIT_RADIUS = 2.2;
+const EARTH_RADIUS = 3; // Radius of the flat disc (includes ice wall)
+const DOME_RADIUS = EARTH_RADIUS; // Firmament matches earth disc
+const DOME_HEIGHT = EARTH_RADIUS * 1.5; // Height of the dome (proportional)
+const SUN_ALTITUDE = EARTH_RADIUS * 0.5; // Height of the sun above the disc
+const SUN_ORBIT_RADIUS = EARTH_RADIUS * 0.4; // Radius of sun's circular path
+const MOON_ALTITUDE = EARTH_RADIUS * 0.45;
+const MOON_ORBIT_RADIUS = EARTH_RADIUS * 0.5;
 const SUN_SIZE = 0.15;
-const MOON_SIZE = 0.12;
+const MOON_SIZE = 0.1;
 
 // The Flat Earth disc with continents
 function FlatEarthDisc() {
@@ -35,9 +35,10 @@ function FlatEarthDisc() {
         const points: THREE.Vector3[] = [];
         coords.forEach(([lon, lat]) => {
           // Azimuthal equidistant projection from North Pole
+          // Scale so that 90° south (Antarctica) is at the edge (EARTH_RADIUS)
           const latRad = (90 - lat) * (Math.PI / 180);
           const lonRad = lon * (Math.PI / 180);
-          const r = (latRad / Math.PI) * EARTH_RADIUS * 2;
+          const r = (latRad / Math.PI) * EARTH_RADIUS; // Changed: removed * 2 to fit within disc
           const x = r * Math.sin(lonRad);
           const z = -r * Math.cos(lonRad);
           points.push(new THREE.Vector3(x, 0.01, z));
@@ -133,30 +134,66 @@ function FlatEarthDisc() {
   );
 }
 
-// The Firmament dome
+// The Firmament dome - a hemispherical dome covering the flat earth
 function Firmament() {
   return (
     <group>
-      {/* Dome mesh - wireframe style */}
-      <mesh>
-        <sphereGeometry args={[DOME_RADIUS, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial 
-          color="#1e3a5f" 
-          transparent 
-          opacity={0.3} 
-          side={THREE.DoubleSide}
-          wireframe
-        />
-      </mesh>
+      {/* Dome wireframe lines - horizontal rings */}
+      {[0.2, 0.4, 0.6, 0.8, 1.0].map((heightFactor, idx) => {
+        const phi = heightFactor * (Math.PI / 2);
+        const y = Math.sin(phi) * DOME_HEIGHT;
+        const r = Math.cos(phi) * DOME_RADIUS;
+        return (
+          <Line
+            key={`h-${idx}`}
+            points={Array.from({ length: 65 }, (_, i) => {
+              const theta = (i / 64) * Math.PI * 2;
+              return new THREE.Vector3(
+                Math.cos(theta) * r,
+                y,
+                Math.sin(theta) * r
+              );
+            })}
+            color="#3b82f6"
+            lineWidth={1}
+            transparent
+            opacity={0.3}
+          />
+        );
+      })}
       
-      {/* Solid inner dome for stars */}
+      {/* Dome wireframe lines - vertical meridians */}
+      {Array.from({ length: 12 }, (_, i) => {
+        const theta = (i / 12) * Math.PI * 2;
+        return (
+          <Line
+            key={`v-${i}`}
+            points={Array.from({ length: 33 }, (_, j) => {
+              const phi = (j / 32) * (Math.PI / 2);
+              const y = Math.sin(phi) * DOME_HEIGHT;
+              const r = Math.cos(phi) * DOME_RADIUS;
+              return new THREE.Vector3(
+                Math.cos(theta) * r,
+                y,
+                Math.sin(theta) * r
+              );
+            })}
+            color="#3b82f6"
+            lineWidth={1}
+            transparent
+            opacity={0.2}
+          />
+        );
+      })}
+      
+      {/* Solid inner dome for dark sky */}
       <mesh>
-        <sphereGeometry args={[DOME_RADIUS - 0.01, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <sphereGeometry args={[DOME_RADIUS * 1.01, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2]} />
         <meshBasicMaterial 
-          color="#0f172a" 
+          color="#0a0f1a" 
           side={THREE.BackSide}
           transparent
-          opacity={0.8}
+          opacity={0.85}
         />
       </mesh>
       
@@ -165,8 +202,8 @@ function Firmament() {
       
       {/* Label */}
       <Text
-        position={[0, DOME_HEIGHT + 0.5, 0]}
-        fontSize={0.25}
+        position={[0, DOME_HEIGHT + 0.3, 0]}
+        fontSize={0.2}
         color="#64748b"
         anchorX="center"
       >
@@ -182,12 +219,14 @@ function Stars() {
     const starPositions: THREE.Vector3[] = [];
     for (let i = 0; i < 200; i++) {
       const theta = Math.random() * Math.PI * 2;
-      const phi = Math.random() * Math.PI / 2;
-      const r = DOME_RADIUS - 0.05;
+      const phi = Math.random() * (Math.PI / 2) * 0.9; // Limit to dome area
+      // Position on dome surface
+      const y = Math.sin(phi) * DOME_HEIGHT;
+      const horizontalR = Math.cos(phi) * DOME_RADIUS * 0.98;
       starPositions.push(new THREE.Vector3(
-        r * Math.sin(phi) * Math.cos(theta),
-        r * Math.cos(phi),
-        r * Math.sin(phi) * Math.sin(theta)
+        horizontalR * Math.cos(theta),
+        y,
+        horizontalR * Math.sin(theta)
       ));
     }
     return starPositions;
@@ -423,7 +462,21 @@ function AnimationController() {
 
 // Info panel component
 function FlatEarthInfoPanel() {
-  const { dayOfYear, hourOfDay, setHourOfDay, setDayOfYear, isAnimating, toggleAnimation, animationSpeed, setAnimationSpeed } = useGeoStore();
+  const { 
+    dayOfYear, 
+    hourOfDay, 
+    setHourOfDay, 
+    setDayOfYear, 
+    isAnimating, 
+    toggleAnimation, 
+    animationSpeed, 
+    setAnimationSpeed,
+    drawingMode,
+    setDrawingMode,
+    lines,
+    removeLine,
+    clearLines
+  } = useGeoStore();
   
   const MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
   
@@ -438,12 +491,84 @@ function FlatEarthInfoPanel() {
     const m = Math.floor((hour % 1) * 60);
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
   };
+  
+  const formatDistance = (distance: number) => {
+    return distance >= 1000 
+      ? `${(distance / 1000).toFixed(1)}k km`
+      : `${distance.toFixed(0)} km`;
+  };
 
   return (
-    <div className="absolute top-4 left-4 bg-slate-800/95 p-4 rounded-lg text-xs space-y-3 max-w-[300px] border border-slate-700">
+    <div className="absolute top-4 left-4 bg-slate-800/95 p-4 rounded-lg text-xs space-y-3 max-w-[300px] border border-slate-700 max-h-[calc(100vh-120px)] overflow-y-auto">
       <div className="text-amber-400 font-semibold text-sm flex items-center gap-2">
         <Info className="w-4 h-4" />
         Modèle Terre Plate
+      </div>
+      
+      {/* Drawing Controls */}
+      <div className="border-t border-slate-700 pt-3">
+        <div className="text-slate-400 font-medium mb-2">Mesure de distance</div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setDrawingMode('pan')}
+            className={`flex-1 px-2 py-1.5 rounded text-xs transition-colors ${
+              drawingMode === 'pan'
+                ? 'bg-slate-600 text-white'
+                : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+            }`}
+          >
+            🖐️ Navigation
+          </button>
+          <button
+            onClick={() => setDrawingMode(drawingMode === 'drawing' ? 'pan' : 'drawing')}
+            className={`flex-1 px-2 py-1.5 rounded text-xs transition-colors ${
+              drawingMode === 'drawing'
+                ? 'bg-cyan-500 text-white'
+                : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+            }`}
+          >
+            📏 Tracer
+          </button>
+        </div>
+        
+        {/* Lines list */}
+        {lines.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Lignes tracées ({lines.length})</span>
+              <button
+                onClick={clearLines}
+                className="text-red-400 hover:text-red-300 text-xs"
+              >
+                Tout effacer
+              </button>
+            </div>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {lines.map((line) => (
+                <div
+                  key={line.id}
+                  className="flex items-center justify-between bg-slate-700/50 px-2 py-1 rounded"
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: line.color }}
+                    />
+                    <span className="text-slate-300 font-mono text-xs">
+                      {formatDistance(line.distance)}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => removeLine(line.id)}
+                    className="text-slate-500 hover:text-red-400 text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Time Controls */}
@@ -547,8 +672,543 @@ function FlatEarthInfoPanel() {
   );
 }
 
+// 2D Map View Component with pan/zoom and day/night
+function FlatEarth2DView({ compact = false }: { compact?: boolean }) {
+  const { land } = useWorldData();
+  const { 
+    dayOfYear, 
+    hourOfDay, 
+    lines, 
+    addLine, 
+    drawingMode, 
+    selectedPoint, 
+    setSelectedPoint,
+    hoverCoords,
+    setHoverCoords 
+  } = useGeoStore();
+  const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Pan and zoom state
+  const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 800, height: 800 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  
+  const baseSize = 800;
+  const earthRadiusPx = 350;
+  const center = baseSize / 2;
+  
+  // Convert lat/lon to 2D coordinates (Azimuthal equidistant from North Pole)
+  const latLonTo2D = (lat: number, lon: number) => {
+    const latRad = (90 - lat) * (Math.PI / 180);
+    const lonRad = lon * (Math.PI / 180);
+    const r = (latRad / Math.PI) * earthRadiusPx;
+    const x = center + r * Math.sin(lonRad);
+    const y = center - r * Math.cos(lonRad);
+    return { x, y };
+  };
+  
+  // Convert 2D coordinates back to lat/lon
+  const xy2DToLatLon = (x: number, y: number): { lat: number; lon: number } | null => {
+    const dx = x - center;
+    const dy = center - y;
+    const r = Math.sqrt(dx * dx + dy * dy);
+    if (r > earthRadiusPx) return null;
+    const latRad = (r / earthRadiusPx) * Math.PI;
+    const lat = 90 - latRad * (180 / Math.PI);
+    const lon = Math.atan2(dx, dy) * (180 / Math.PI);
+    return { lat, lon };
+  };
+  
+  // Sun position (in 2D pixel coordinates)
+  const hourAngle = (hourOfDay / 24) * Math.PI * 2 - Math.PI / 2;
+  const seasonalOffset = Math.cos((dayOfYear - 172) / 365.25 * Math.PI * 2);
+  const sunOrbitRadius = earthRadiusPx * 0.4 - seasonalOffset * earthRadiusPx * 0.25;
+  const sunX = center + Math.cos(hourAngle) * sunOrbitRadius;
+  const sunY = center + Math.sin(hourAngle) * sunOrbitRadius;
+  
+  // Moon position
+  const moonOrbitRadius = earthRadiusPx * 0.5;
+  const moonX = center + Math.cos(hourAngle + Math.PI) * moonOrbitRadius;
+  const moonY = center + Math.sin(hourAngle + Math.PI) * moonOrbitRadius;
+  
+  // Flat earth distance calculation (euclidean on disc)
+  // Diameter = 40000km, radius = 20000km
+  const FLAT_EARTH_RADIUS_KM = 20000;
+  const pxToKm = FLAT_EARTH_RADIUS_KM / earthRadiusPx;
+  
+  // Calculate flat earth distance between two points
+  const flatEarthDistance = (start: { lat: number; lon: number }, end: { lat: number; lon: number }) => {
+    const p1 = latLonTo2D(start.lat, start.lon);
+    const p2 = latLonTo2D(end.lat, end.lon);
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    return Math.sqrt(dx * dx + dy * dy) * pxToKm;
+  };
+  
+  // Get SVG coordinates from mouse event
+  const getMouseCoords = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    const scaleX = viewBox.width / rect.width;
+    const scaleY = viewBox.height / rect.height;
+    const x = viewBox.x + (e.clientX - rect.left) * scaleX;
+    const y = viewBox.y + (e.clientY - rect.top) * scaleY;
+    return { x, y };
+  };
+  
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const coords = getMouseCoords(e);
+    if (!coords) return;
+    
+    // Handle panning
+    if (isPanning && drawingMode === 'pan') {
+      const dx = (e.clientX - panStart.x) * (viewBox.width / (svgRef.current?.getBoundingClientRect().width || 1));
+      const dy = (e.clientY - panStart.y) * (viewBox.height / (svgRef.current?.getBoundingClientRect().height || 1));
+      setViewBox(prev => ({
+        ...prev,
+        x: prev.x - dx,
+        y: prev.y - dy
+      }));
+      setPanStart({ x: e.clientX, y: e.clientY });
+      return;
+    }
+    
+    const latLon = xy2DToLatLon(coords.x, coords.y);
+    if (latLon) {
+      setHoverCoords(latLon);
+    } else {
+      setHoverCoords(null);
+    }
+  };
+  
+  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (drawingMode === 'pan') {
+      setIsPanning(true);
+      setPanStart({ x: e.clientX, y: e.clientY });
+    }
+  };
+  
+  const handleMouseUp = () => {
+    setIsPanning(false);
+  };
+  
+  const handleMouseLeave = () => {
+    setHoverCoords(null);
+    setIsPanning(false);
+  };
+  
+  const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    const coords = getMouseCoords(e as unknown as React.MouseEvent<SVGSVGElement>);
+    if (!coords) return;
+    
+    const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+    const newWidth = Math.max(200, Math.min(1600, viewBox.width * zoomFactor));
+    const newHeight = Math.max(200, Math.min(1600, viewBox.height * zoomFactor));
+    
+    // Zoom towards mouse position
+    const mouseXRatio = (coords.x - viewBox.x) / viewBox.width;
+    const mouseYRatio = (coords.y - viewBox.y) / viewBox.height;
+    
+    setViewBox({
+      x: coords.x - mouseXRatio * newWidth,
+      y: coords.y - mouseYRatio * newHeight,
+      width: newWidth,
+      height: newHeight
+    });
+  };
+  
+  const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (drawingMode !== 'drawing') return;
+    
+    const coords = getMouseCoords(e);
+    if (!coords) return;
+    
+    const latLon = xy2DToLatLon(coords.x, coords.y);
+    if (!latLon) return;
+    
+    if (!selectedPoint) {
+      setSelectedPoint(latLon);
+    } else {
+      addLine({
+        start: selectedPoint,
+        end: latLon,
+        sourceView: 'azimuthal',
+        color: '#06b6d4',
+      });
+    }
+  };
+  
+  // Reset view
+  const resetView = () => {
+    setViewBox({ x: 0, y: 0, width: 800, height: 800 });
+  };
+  
+  // Generate continent paths
+  const continentPaths = useMemo(() => {
+    if (!land) return [];
+    const paths: string[] = [];
+    
+    land.features.forEach((feature) => {
+      const geometry = feature.geometry;
+      
+      const processCoordinates = (coords: number[][]) => {
+        if (coords.length < 2) return;
+        let path = '';
+        coords.forEach(([lon, lat], i) => {
+          const { x, y } = latLonTo2D(lat, lon);
+          path += i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
+        });
+        if (path) paths.push(path);
+      };
+      
+      if (geometry.type === 'Polygon') {
+        geometry.coordinates.forEach((ring: number[][]) => processCoordinates(ring));
+      } else if (geometry.type === 'MultiPolygon') {
+        geometry.coordinates.forEach((polygon: number[][][]) => {
+          polygon.forEach((ring: number[][]) => processCoordinates(ring));
+        });
+      }
+    });
+    
+    return paths;
+  }, [land]);
+  
+  // Format distance for flat earth model
+  const formatFlatDistance = (distanceKm: number) => {
+    return distanceKm >= 1000 
+      ? `${(distanceKm / 1000).toFixed(1)}k km`
+      : `${distanceKm.toFixed(0)} km`;
+  };
+  
+  return (
+    <div ref={containerRef} className="w-full h-full flex flex-col bg-slate-900 relative">
+      {/* Toolbar */}
+      {!compact && (
+        <div className="absolute top-2 right-2 z-10 flex gap-2">
+          <button
+            onClick={resetView}
+            className="bg-slate-700/80 hover:bg-slate-600 px-2 py-1 rounded text-xs text-slate-300"
+          >
+            🔄 Reset
+          </button>
+        </div>
+      )}
+      
+      {/* Coordinates display */}
+      {hoverCoords && !compact && (
+        <div className="absolute top-2 left-2 bg-slate-800/90 px-2 py-1 rounded text-xs z-10">
+          <span className="text-slate-400">Position: </span>
+          <span className="text-cyan-400 font-mono">
+            {hoverCoords.lat.toFixed(2)}°, {hoverCoords.lon.toFixed(2)}°
+          </span>
+        </div>
+      )}
+      
+      {/* Map */}
+      <div className="flex-1 overflow-hidden">
+        <svg
+          ref={svgRef}
+          viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
+          className="w-full h-full"
+          style={{ cursor: drawingMode === 'drawing' ? 'crosshair' : (drawingMode === 'pan' ? 'grab' : 'default') }}
+          onMouseMove={handleMouseMove}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          onWheel={handleWheel}
+          onClick={handleClick}
+        >
+          <defs>
+            {/* Gradient for night shadow */}
+            <radialGradient id="sunLight" cx={sunX} cy={sunY} r={earthRadiusPx * 0.8} gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="transparent" />
+              <stop offset="70%" stopColor="transparent" />
+              <stop offset="100%" stopColor="rgba(0,0,30,0.7)" />
+            </radialGradient>
+            
+            {/* Clip path for earth disc */}
+            <clipPath id="earthClip">
+              <circle cx={center} cy={center} r={earthRadiusPx} />
+            </clipPath>
+          </defs>
+          
+          {/* Ocean background */}
+          <circle cx={center} cy={center} r={earthRadiusPx} fill="#0e83ca" />
+          
+          {/* Latitude circles */}
+          {[30, 60].map((lat) => {
+            const r = ((90 - lat) / 90) * (earthRadiusPx / 2);
+            return (
+              <circle
+                key={lat}
+                cx={center}
+                cy={center}
+                r={r}
+                fill="none"
+                stroke="#f59e0b"
+                strokeWidth="1"
+                opacity="0.3"
+              />
+            );
+          })}
+          
+          {/* Equator */}
+          <circle
+            cx={center}
+            cy={center}
+            r={earthRadiusPx / 2}
+            fill="none"
+            stroke="#f59e0b"
+            strokeWidth="1.5"
+            opacity="0.5"
+          />
+          
+          {/* Longitude lines */}
+          {Array.from({ length: 12 }, (_, i) => {
+            const angle = (i / 12) * Math.PI * 2;
+            const x2 = center + Math.cos(angle) * earthRadiusPx;
+            const y2 = center + Math.sin(angle) * earthRadiusPx;
+            return (
+              <line
+                key={i}
+                x1={center}
+                y1={center}
+                x2={x2}
+                y2={y2}
+                stroke="#f59e0b"
+                strokeWidth="1"
+                opacity="0.2"
+              />
+            );
+          })}
+          
+          {/* Continents */}
+          {continentPaths.map((path, i) => (
+            <path
+              key={i}
+              d={path}
+              fill="none"
+              stroke="#22c55e"
+              strokeWidth="1.5"
+            />
+          ))}
+          
+          {/* Night shadow - spotlight effect */}
+          <g clipPath="url(#earthClip)">
+            <circle 
+              cx={center} 
+              cy={center} 
+              r={earthRadiusPx} 
+              fill="url(#sunLight)"
+            />
+            {/* Additional darker area opposite to sun */}
+            <ellipse
+              cx={center + (center - sunX) * 0.7}
+              cy={center + (center - sunY) * 0.7}
+              rx={earthRadiusPx * 0.6}
+              ry={earthRadiusPx * 0.6}
+              fill="rgba(0,0,30,0.5)"
+              style={{ mixBlendMode: 'multiply' }}
+            />
+          </g>
+          
+          {/* Ice wall */}
+          <circle
+            cx={center}
+            cy={center}
+            r={earthRadiusPx}
+            fill="none"
+            stroke="#e2e8f0"
+            strokeWidth="12"
+          />
+          
+          {/* North pole marker */}
+          <circle cx={center} cy={center} r={4} fill="#ef4444" />
+          {!compact && (
+            <text x={center} y={center - 12} textAnchor="middle" fill="#ef4444" fontSize="10">
+              Pôle Nord
+            </text>
+          )}
+          
+          {/* Sun orbit */}
+          <circle
+            cx={center}
+            cy={center}
+            r={sunOrbitRadius}
+            fill="none"
+            stroke="#fbbf24"
+            strokeWidth="1"
+            strokeDasharray="5,5"
+            opacity="0.3"
+          />
+          
+          {/* Sun with glow */}
+          <circle cx={sunX} cy={sunY} r={25} fill="#fef3c7" opacity="0.3" />
+          <circle cx={sunX} cy={sunY} r={18} fill="#fde68a" opacity="0.5" />
+          <circle cx={sunX} cy={sunY} r={12} fill="#fbbf24" />
+          {!compact && (
+            <text x={sunX} y={sunY + 28} textAnchor="middle" fill="#fbbf24" fontSize="9">
+              ☀️ Soleil
+            </text>
+          )}
+          
+          {/* Moon */}
+          <circle cx={moonX} cy={moonY} r={8} fill="#d1d5db" />
+          {!compact && (
+            <text x={moonX} y={moonY + 18} textAnchor="middle" fill="#94a3b8" fontSize="9">
+              🌙 Lune
+            </text>
+          )}
+          
+          {/* Drawn lines - using flat earth distance */}
+          {lines.map((line) => {
+            const start2D = latLonTo2D(line.start.lat, line.start.lon);
+            const end2D = latLonTo2D(line.end.lat, line.end.lon);
+            const midX = (start2D.x + end2D.x) / 2;
+            const midY = (start2D.y + end2D.y) / 2;
+            const flatDist = flatEarthDistance(line.start, line.end);
+            
+            return (
+              <g key={line.id}>
+                <line
+                  x1={start2D.x}
+                  y1={start2D.y}
+                  x2={end2D.x}
+                  y2={end2D.y}
+                  stroke={line.color}
+                  strokeWidth="2"
+                />
+                <circle cx={start2D.x} cy={start2D.y} r={5} fill={line.color} />
+                <circle cx={end2D.x} cy={end2D.y} r={5} fill={line.color} />
+                {/* Distance label - flat earth distance */}
+                <rect
+                  x={midX - 40}
+                  y={midY - 12}
+                  width="80"
+                  height="18"
+                  rx="4"
+                  fill="rgba(0,0,0,0.8)"
+                />
+                <text
+                  x={midX}
+                  y={midY + 3}
+                  textAnchor="middle"
+                  fill={line.color}
+                  fontSize="10"
+                  fontWeight="bold"
+                >
+                  {formatFlatDistance(flatDist)} (FE)
+                </text>
+              </g>
+            );
+          })}
+          
+          {/* Current drawing line */}
+          {selectedPoint && hoverCoords && drawingMode === 'drawing' && (
+            (() => {
+              const start2D = latLonTo2D(selectedPoint.lat, selectedPoint.lon);
+              const end2D = latLonTo2D(hoverCoords.lat, hoverCoords.lon);
+              const flatDist = flatEarthDistance(selectedPoint, hoverCoords);
+              const midX = (start2D.x + end2D.x) / 2;
+              const midY = (start2D.y + end2D.y) / 2;
+              return (
+                <g>
+                  <line
+                    x1={start2D.x}
+                    y1={start2D.y}
+                    x2={end2D.x}
+                    y2={end2D.y}
+                    stroke="#06b6d4"
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                  />
+                  <circle cx={start2D.x} cy={start2D.y} r={6} fill="#06b6d4" />
+                  {/* Preview distance */}
+                  <rect
+                    x={midX - 35}
+                    y={midY - 20}
+                    width="70"
+                    height="16"
+                    rx="3"
+                    fill="rgba(0,0,0,0.7)"
+                  />
+                  <text
+                    x={midX}
+                    y={midY - 8}
+                    textAnchor="middle"
+                    fill="#06b6d4"
+                    fontSize="10"
+                  >
+                    {formatFlatDistance(flatDist)}
+                  </text>
+                </g>
+              );
+            })()
+          )}
+          
+          {/* Hover indicator */}
+          {hoverCoords && drawingMode === 'drawing' && !selectedPoint && (
+            (() => {
+              const pos = latLonTo2D(hoverCoords.lat, hoverCoords.lon);
+              return (
+                <circle 
+                  cx={pos.x} 
+                  cy={pos.y} 
+                  r={6} 
+                  fill="none" 
+                  stroke="#06b6d4" 
+                  strokeWidth="2"
+                />
+              );
+            })()
+          )}
+          
+          {/* Scale bar */}
+          {!compact && (
+            <g transform={`translate(${viewBox.x + viewBox.width - 120}, ${viewBox.y + viewBox.height - 40})`}>
+              <rect x="-5" y="-15" width="110" height="35" fill="rgba(0,0,0,0.5)" rx="4" />
+              <line x1="0" y1="0" x2="80" y2="0" stroke="#64748b" strokeWidth="2" />
+              <line x1="0" y1="-5" x2="0" y2="5" stroke="#64748b" strokeWidth="2" />
+              <line x1="80" y1="-5" x2="80" y2="5" stroke="#64748b" strokeWidth="2" />
+              <text x="40" y="15" textAnchor="middle" fill="#64748b" fontSize="10">
+                {Math.round(80 * pxToKm * (viewBox.width / baseSize))} km
+              </text>
+            </g>
+          )}
+          
+          {/* Title */}
+          {!compact && (
+            <text x={viewBox.x + viewBox.width / 2} y={viewBox.y + 25} textAnchor="middle" fill="#64748b" fontSize="12">
+              Carte Terre Plate (distances FE)
+            </text>
+          )}
+        </svg>
+      </div>
+      
+      {/* Drawing hint */}
+      {drawingMode === 'drawing' && !compact && (
+        <div className="absolute bottom-2 right-2 bg-slate-800/90 px-2 py-1 rounded text-xs text-cyan-400">
+          {selectedPoint ? '📍 Cliquez pour le 2ème point' : '📍 Cliquez pour le 1er point'}
+        </div>
+      )}
+      
+      {/* Pan hint */}
+      {drawingMode === 'pan' && !compact && (
+        <div className="absolute bottom-2 right-2 bg-slate-800/90 px-2 py-1 rounded text-xs text-slate-400">
+          🖱️ Glisser pour déplacer • Molette pour zoomer
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Main Flat Earth Page component
 export function FlatEarthPage() {
+  const [viewMode, setViewMode] = useState<'3d' | '2d' | 'both'>('both');
+  
   return (
     <div className="h-screen bg-slate-900 text-slate-100 flex flex-col">
       {/* Header with navigation */}
@@ -568,7 +1228,45 @@ export function FlatEarthPage() {
           </h1>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          <div className="flex bg-slate-700 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('3d')}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                viewMode === '3d'
+                  ? 'bg-amber-500 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Box className="w-3 h-3" />
+              3D
+            </button>
+            <button
+              onClick={() => setViewMode('2d')}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                viewMode === '2d'
+                  ? 'bg-amber-500 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Map className="w-3 h-3" />
+              2D
+            </button>
+            <button
+              onClick={() => setViewMode('both')}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                viewMode === 'both'
+                  ? 'bg-amber-500 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              ⬚ Les deux
+            </button>
+          </div>
+          
+          <div className="h-6 w-px bg-slate-700" />
+          
           <Link 
             to="/" 
             className="px-3 py-1.5 bg-cyan-500/20 text-cyan-400 rounded text-sm hover:bg-cyan-500/30 transition-colors"
@@ -578,38 +1276,90 @@ export function FlatEarthPage() {
         </div>
       </header>
 
-      {/* 3D View */}
-      <div className="flex-1 relative">
-        <Canvas
-          camera={{ position: [6, 4, 6], fov: 50 }}
-          gl={{ antialias: true }}
-        >
-          <ambientLight intensity={0.2} />
-          <pointLight position={[0, 10, 0]} intensity={0.5} />
+      {/* View content */}
+      {viewMode === '3d' && (
+        <div className="flex-1 relative">
+          <Canvas
+            camera={{ position: [6, 4, 6], fov: 50 }}
+            gl={{ antialias: true }}
+          >
+            <ambientLight intensity={0.2} />
+            <pointLight position={[0, 10, 0]} intensity={0.5} />
+            
+            <AnimationController />
+            <FlatEarthDisc />
+            <Firmament />
+            <FlatEarthSun />
+            <FlatEarthMoon />
+            <OrbitPaths />
+            <DistanceMarkers />
+            
+            <OrbitControls
+              enablePan={true}
+              minDistance={3}
+              maxDistance={15}
+              maxPolarAngle={Math.PI / 2 - 0.1}
+            />
+          </Canvas>
           
-          <AnimationController />
-          <FlatEarthDisc />
-          <Firmament />
-          <FlatEarthSun />
-          <FlatEarthMoon />
-          <OrbitPaths />
-          <DistanceMarkers />
+          <FlatEarthInfoPanel />
           
-          <OrbitControls
-            enablePan={true}
-            minDistance={3}
-            maxDistance={15}
-            maxPolarAngle={Math.PI / 2 - 0.1}
-          />
-        </Canvas>
-        
-        <FlatEarthInfoPanel />
-        
-        {/* Controls hint */}
-        <div className="absolute bottom-4 right-4 bg-slate-800/80 px-3 py-2 rounded text-xs text-slate-400">
-          🖱️ Clic-glisser pour tourner • Molette pour zoomer
+          <div className="absolute bottom-4 right-4 bg-slate-800/80 px-3 py-2 rounded text-xs text-slate-400">
+            �️ Clic-glisser pour tourner • Molette pour zoomer
+          </div>
         </div>
-      </div>
+      )}
+      
+      {viewMode === '2d' && (
+        <div className="flex-1 relative">
+          <FlatEarth2DView />
+          <FlatEarthInfoPanel />
+        </div>
+      )}
+      
+      {viewMode === 'both' && (
+        <div className="flex-1 flex">
+          {/* 3D View */}
+          <div className="flex-1 relative border-r border-slate-700">
+            <div className="absolute top-2 left-2 z-10 bg-slate-800/80 px-2 py-1 rounded text-xs text-amber-400">
+              Vue 3D
+            </div>
+            <Canvas
+              camera={{ position: [6, 4, 6], fov: 50 }}
+              gl={{ antialias: true }}
+            >
+              <ambientLight intensity={0.2} />
+              <pointLight position={[0, 10, 0]} intensity={0.5} />
+              
+              <AnimationController />
+              <FlatEarthDisc />
+              <Firmament />
+              <FlatEarthSun />
+              <FlatEarthMoon />
+              <OrbitPaths />
+              <DistanceMarkers />
+              
+              <OrbitControls
+                enablePan={true}
+                minDistance={3}
+                maxDistance={15}
+                maxPolarAngle={Math.PI / 2 - 0.1}
+              />
+            </Canvas>
+          </div>
+          
+          {/* 2D View */}
+          <div className="flex-1 relative">
+            <div className="absolute top-2 left-2 z-10 bg-slate-800/80 px-2 py-1 rounded text-xs text-amber-400">
+              Carte 2D (distances FE)
+            </div>
+            <FlatEarth2DView compact={false} />
+          </div>
+          
+          {/* Control Panel - floating in center */}
+          <FlatEarthInfoPanel />
+        </div>
+      )}
     </div>
   );
 }
